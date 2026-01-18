@@ -229,7 +229,7 @@ type AgendaFolder {
 }
 
 type AgendaItem {
-  """Date time at the time the agenda item was last created."""
+  """Date time when the agenda item was created."""
   createdAt: DateTime
 
   """User who created the agenda item."""
@@ -242,7 +242,7 @@ type AgendaItem {
   duration: String
 
   """Agenda folder within which the agenda item in contained."""
-  event: AgendaFolder
+  folder: AgendaFolder
 
   """Global identifier of the agenda item."""
   id: ID!
@@ -254,6 +254,12 @@ type AgendaItem {
 
   """Name of the agenda item."""
   name: String
+
+  """Notes for the agenda item."""
+  notes: String
+
+  """Sequence order of the agenda item."""
+  sequence: Int
 
   """Type of the agenda item."""
   type: AgendaItemType
