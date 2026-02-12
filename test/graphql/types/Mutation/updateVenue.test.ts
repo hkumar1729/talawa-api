@@ -1574,7 +1574,7 @@ suite("Mutation field updateVenue", () => {
 	});
 
 	test("throws unauthenticated when current user no longer exists", async () => {
-		// Create organization and venue as admin
+		// admin sign in
 		const administratorUserSignInResult = await mercuriusClient.query(
 			Query_signIn,
 			{
@@ -1591,13 +1591,12 @@ suite("Mutation field updateVenue", () => {
 			administratorUserSignInResult.data?.signIn?.authenticationToken,
 		);
 
+		// create org
 		const createOrganizationResult = await mercuriusClient.mutate(
 			graphql(`
-			  mutation CreateOrganization($input: MutationCreateOrganizationInput!) {
-				createOrganization(input: $input) {
-				  id
-				}
-			  }
+			mutation CreateOrganization($input: MutationCreateOrganizationInput!) {
+				createOrganization(input: $input) { id }
+			}
 			`),
 			{
 				headers: {
@@ -1615,6 +1614,7 @@ suite("Mutation field updateVenue", () => {
 		assertToBeNonNullish(createOrganizationResult.data?.createOrganization?.id);
 		const orgId = createOrganizationResult.data.createOrganization.id;
 
+		// create venue
 		const createVenueResult = await mercuriusClient.mutate(
 			Mutation_createVenue,
 			{
@@ -1636,8 +1636,9 @@ suite("Mutation field updateVenue", () => {
 		createdResources.venueIds.push(createVenueResult.data.createVenue.id);
 		const venueId = createVenueResult.data.createVenue.id;
 
-		// Create a temporary user and sign in
+		// create temp user via signup
 		const tempEmail = `temp-${faker.string.ulid()}@example.com`;
+
 		const signUpResult = await mercuriusClient.mutate(Mutation_signUp, {
 			variables: {
 				input: {
@@ -1650,21 +1651,17 @@ suite("Mutation field updateVenue", () => {
 		});
 
 		assertToBeNonNullish(signUpResult.data?.signUp?.authenticationToken);
-		const tempSignIn = await mercuriusClient.query(Query_signIn, {
-			variables: {
-				input: { emailAddress: tempEmail, password: "Passw0rd!23" },
-			},
-		});
-		assertToBeNonNullish(tempSignIn.data?.signIn?.authenticationToken);
+		const tempUserToken = signUpResult.data.signUp.authenticationToken;
 
-		// Remove user record from DB so lookup returns undefined
+		// delete user from DB
 		await server.drizzleClient
 			.delete(usersTable)
 			.where(eq(usersTable.emailAddress, tempEmail));
 
+		// call mutation using now-invalid user token
 		const res = await mercuriusClient.mutate(Mutation_updateVenue, {
 			headers: {
-				authorization: `bearer ${tempSignIn.data.signIn.authenticationToken}`,
+				authorization: `bearer ${tempUserToken}`,
 			},
 			variables: {
 				input: {
@@ -1676,10 +1673,7 @@ suite("Mutation field updateVenue", () => {
 
 		expect(res.data?.updateVenue).toEqual(null);
 		expect(res.errors).toBeDefined();
-		if (!res.errors) {
-			throw new Error("Errors not found");
-		}
-		expect(res.errors.length).toBeGreaterThan(0);
+		expect(res.errors?.length).toBeGreaterThan(0);
 		expect(res.errors?.[0]?.extensions.code).toBe("unauthenticated");
 	});
 
